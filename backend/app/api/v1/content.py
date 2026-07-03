@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_editor
 from app.db.session import get_db
-from app.models import (Article, ArticleStatus, Category, Tag, User)
+from app.models import Article, ArticleStatus, Category, Tag, User
 from app.schemas.common import ArticleIn, ArticleOut
 from app.services.news.rewriter import slugify
 

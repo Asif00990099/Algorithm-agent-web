@@ -7,10 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.core.security import encrypt_secret
 from app.db.session import get_db
-from app.models import (ExchangeApiKey, Notification, PriceAlert, Trade,
-                        TradeStatus, User, WatchlistItem)
-from app.schemas.common import (AlertIn, ApiKeyIn, UserOut, UserUpdateRequest,
-                                WatchlistIn)
+from app.models import ExchangeApiKey, Notification, PriceAlert, Trade, TradeStatus, User, WatchlistItem
+from app.schemas.common import AlertIn, ApiKeyIn, UserOut, UserUpdateRequest, WatchlistIn
 from app.services.market.binance import get_price
 
 router = APIRouter(prefix="/users", tags=["users"])

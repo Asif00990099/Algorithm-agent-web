@@ -5,7 +5,6 @@ from typing import List, Optional
 from app.core.config import settings
 from app.services.market.http import cached_get_json
 
-
 # ------------------------------------------------- Alternative.me Fear&Greed
 
 async def get_fear_greed(limit: int = 30) -> Optional[List[dict]]:

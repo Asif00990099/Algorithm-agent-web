@@ -9,9 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, require_admin, require_trader
 from app.db.session import get_db
-from app.models import (BacktestRun, Signal, SignalAction, Strategy, User)
-from app.schemas.common import (BacktestRequest, SignalOut, StrategyIn,
-                                StrategyOut)
+from app.models import BacktestRun, Signal, SignalAction, Strategy, User
+from app.schemas.common import BacktestRequest, SignalOut, StrategyIn, StrategyOut
 from app.services.ai.agent import analyze_symbol
 from app.services.backtest.engine import run_backtest
 from app.services.market.binance import get_klines, klines_to_ohlcv

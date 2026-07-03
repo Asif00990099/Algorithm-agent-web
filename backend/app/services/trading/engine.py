@@ -17,8 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import decrypt_secret
-from app.models import (ExchangeApiKey, Notification, Trade, TradeMode,
-                        TradeStatus, User)
+from app.models import ExchangeApiKey, Notification, Trade, TradeMode, TradeStatus, User
 from app.services.market.binance import get_price, signed_request
 
 logger = logging.getLogger(__name__)

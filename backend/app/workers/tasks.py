@@ -245,11 +245,11 @@ def news_cycle():
 async def _news_cycle():
     """Collect news from every source, rewrite into original articles and
     auto-publish (unless news_auto_publish=false in app settings)."""
+    from app.api.v1.content import _get_or_create_category, _sync_tags
     from app.db.session import AsyncSessionLocal
     from app.models import AppSetting, Article, ArticleStatus
     from app.services.news.aggregator import collect_all_news
     from app.services.news.rewriter import rewrite_article
-    from app.api.v1.content import _get_or_create_category, _sync_tags
 
     raw_articles = await collect_all_news()
     published = 0
@@ -326,8 +326,7 @@ async def _sentiment_cycle():
     from app.db.session import AsyncSessionLocal
     from app.models import SentimentSnapshot
     from app.services.sentiment.analyzer import aggregate
-    from app.services.sentiment.sources import (fetch_all_rss,
-                                                fetch_reddit_posts)
+    from app.services.sentiment.sources import fetch_all_rss, fetch_reddit_posts
 
     now = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as db:

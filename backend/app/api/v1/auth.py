@@ -9,15 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.cache import rate_limit_check
 from app.core.config import settings
 from app.core.deps import client_ip, get_current_user
-from app.core.security import (create_access_token, create_refresh_token,
-                               decode_token, generate_totp_secret,
-                               hash_password, totp_provisioning_uri,
-                               verify_password, verify_totp)
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    generate_totp_secret,
+    hash_password,
+    totp_provisioning_uri,
+    verify_password,
+    verify_totp,
+)
 from app.db.session import get_db
 from app.models import AuditLog, User
-from app.schemas.common import (LoginRequest, RefreshRequest, RegisterRequest,
-                                TokenResponse, TwoFactorSetupResponse,
-                                TwoFactorVerifyRequest, UserOut)
+from app.schemas.common import (
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    TwoFactorSetupResponse,
+    TwoFactorVerifyRequest,
+    UserOut,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

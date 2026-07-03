@@ -1,6 +1,5 @@
 """Admin dashboard API: users, platform stats, audit logs, prompt templates,
 runtime settings and server health."""
-import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,8 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.cache import get_redis
 from app.core.deps import require_admin
 from app.db.session import get_db
-from app.models import (AppSetting, Article, AuditLog, PromptTemplate, Signal,
-                        Strategy, Trade, User, UserRole)
+from app.models import AppSetting, Article, AuditLog, PromptTemplate, Signal, Strategy, Trade, User, UserRole
 from app.schemas.common import AdminUserUpdateRequest, UserOut
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])

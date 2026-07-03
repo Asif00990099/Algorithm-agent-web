@@ -1,7 +1,7 @@
 """Backtest engine tests using synthetic OHLCV."""
 import numpy as np
 
-from app.services.backtest.engine import compute_metrics, run_backtest, BTTrade
+from app.services.backtest.engine import BTTrade, compute_metrics, run_backtest
 
 
 def make_ohlcv(n=600, seed=7, drift=0.15):

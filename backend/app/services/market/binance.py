@@ -7,8 +7,6 @@ import time
 from typing import List, Optional
 from urllib.parse import urlencode
 
-import httpx
-
 from app.core.config import settings
 from app.services.market.http import cached_get_json, get_http
 

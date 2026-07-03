@@ -1,12 +1,16 @@
 """Tests for the sentiment analyzer, security primitives and position sizing."""
 import pytest
 
-from app.core.security import (create_access_token, decode_token,
-                               decrypt_secret, encrypt_secret, hash_password,
-                               verify_password)
+from app.core.security import (
+    create_access_token,
+    decode_token,
+    decrypt_secret,
+    encrypt_secret,
+    hash_password,
+    verify_password,
+)
 from app.services.sentiment.analyzer import aggregate, analyze_text
 from app.services.trading.engine import TradingError, compute_position_size
-
 
 # ------------------------------------------------------------------ sentiment
 

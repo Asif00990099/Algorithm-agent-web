@@ -1,7 +1,7 @@
 """Social data collectors: Reddit public JSON, X (Twitter) API v2 (optional
 bearer token), Telegram public channel RSS bridges and finance RSS feeds."""
 import logging
-from typing import List, Optional
+from typing import List
 
 import feedparser
 

@@ -1,10 +1,9 @@
 """Trading endpoints: open/close positions (demo & live), history and
 performance stats. Signals & strategies live in signals.py."""
-import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import case, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, require_trader

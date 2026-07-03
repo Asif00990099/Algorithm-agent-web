@@ -2,17 +2,16 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 
+from app.api.v1 import admin, auth, content, intel, market, signals, trading, users, ws
 from app.core.cache import rate_limit_check
 from app.core.config import settings
 from app.core.deps import client_ip
 from app.db.init_db import init_db
 from app.services.market.http import close_http
-
-from app.api.v1 import admin, auth, content, intel, market, signals, trading, users, ws
 
 logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,

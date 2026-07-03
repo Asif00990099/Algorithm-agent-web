@@ -9,9 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models import EconomicEvent, SentimentSnapshot
 from app.services.sentiment.analyzer import aggregate, analyze_text
-from app.services.sentiment.sources import (CRYPTO_SUBREDDITS,
-                                            fetch_reddit_posts, fetch_rss,
-                                            fetch_tweets, RSS_FEEDS)
+from app.services.sentiment.sources import (
+    CRYPTO_SUBREDDITS,
+    RSS_FEEDS,
+    fetch_reddit_posts,
+    fetch_rss,
+    fetch_tweets,
+)
 
 router = APIRouter(prefix="/intel", tags=["intel"])
 

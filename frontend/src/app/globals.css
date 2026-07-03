@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-surface-light text-slate-800 antialiased;
+}
+.dark body {
+  @apply bg-surface-dark text-slate-200;
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-slate-200/70 bg-white/70 shadow-sm backdrop-blur-md
+      dark:border-white/10 dark:bg-white/[0.05] dark:shadow-black/20;
+  }
+  .glass-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg
+      hover:border-accent/40 dark:hover:border-accent/40;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2
+      text-sm font-semibold text-white shadow-md shadow-accent/25 transition
+      hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300
+      px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent
+      dark:border-white/15;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none
+      transition focus:border-accent focus:ring-2 focus:ring-accent/20
+      dark:border-white/15 dark:bg-white/[0.06];
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .table-base {
+    @apply w-full text-left text-sm;
+  }
+  .table-base th {
+    @apply whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wide
+      text-slate-500 dark:text-slate-400;
+  }
+  .table-base td {
+    @apply whitespace-nowrap border-t border-slate-100 px-3 py-2.5 dark:border-white/5;
+  }
+  .table-row-hover {
+    @apply transition-colors hover:bg-accent/5 dark:hover:bg-white/[0.03];
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300 dark:bg-white/15;
+}

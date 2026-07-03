@@ -82,3 +82,19 @@ def test_position_size_caps_at_balance():
 def test_position_size_rejects_dust():
     with pytest.raises(TradingError):
         compute_position_size(20, 100.0, 95.0, 1.0)  # < 10 USDT notional
+
+
+# ------------------------------------------------------- config normalization
+
+def test_database_url_normalizes_postgres_scheme():
+    from app.core.config import Settings
+    s = Settings(DATABASE_URL="postgresql://u:p@db.supabase.co:5432/postgres")
+    assert s.DATABASE_URL.startswith("postgresql+asyncpg://")
+    s2 = Settings(DATABASE_URL="postgres://u:p@host/db")
+    assert s2.DATABASE_URL == "postgresql+asyncpg://u:p@host/db"
+
+
+def test_redis_enabled_flag():
+    from app.core.config import Settings
+    assert Settings(REDIS_URL="redis://localhost:6379/0").redis_enabled is True
+    assert Settings(REDIS_URL="").redis_enabled is False

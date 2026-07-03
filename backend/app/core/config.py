@@ -94,6 +94,22 @@ class Settings(BaseSettings):
     def _warn_default_secret(cls, v: str) -> str:
         return v
 
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        """Accept the raw connection strings that Supabase / Neon / Heroku hand
+        out (postgres:// or postgresql://) and coerce them to the async driver
+        this app uses, so users can paste the URL verbatim."""
+        if v.startswith("postgres://"):
+            v = "postgresql+asyncpg://" + v[len("postgres://"):]
+        elif v.startswith("postgresql://"):
+            v = "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
+
+    @property
+    def redis_enabled(self) -> bool:
+        return bool(self.REDIS_URL and self.REDIS_URL.strip())
+
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"

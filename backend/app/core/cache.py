@@ -23,6 +23,8 @@ def get_redis() -> aioredis.Redis:
 
 
 async def cache_get(key: str) -> Optional[Any]:
+    if not settings.redis_enabled:
+        return None
     try:
         raw = await get_redis().get(key)
         return json.loads(raw) if raw is not None else None
@@ -31,6 +33,8 @@ async def cache_get(key: str) -> Optional[Any]:
 
 
 async def cache_set(key: str, value: Any, ttl: int = 60) -> None:
+    if not settings.redis_enabled:
+        return
     try:
         await get_redis().set(key, json.dumps(value, default=str), ex=ttl)
     except Exception:  # noqa: BLE001
@@ -38,6 +42,8 @@ async def cache_set(key: str, value: Any, ttl: int = 60) -> None:
 
 
 async def publish(channel: str, message: Any) -> None:
+    if not settings.redis_enabled:
+        return
     try:
         await get_redis().publish(channel, json.dumps(message, default=str))
     except Exception:  # noqa: BLE001
@@ -46,6 +52,8 @@ async def publish(channel: str, message: Any) -> None:
 
 async def rate_limit_check(identifier: str, limit: int, window_seconds: int = 60) -> bool:
     """Sliding-window rate limiter. Returns True when the request is allowed."""
+    if not settings.redis_enabled:
+        return True  # no redis → no distributed limiting (single-instance free tier)
     try:
         r = get_redis()
         now = time.time()

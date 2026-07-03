@@ -24,10 +24,15 @@ WATCHED_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
 
 
 def run_async(coro):
-    """Run an async job inside a sync Celery task with clean engine teardown."""
+    """Run an async job inside a sync Celery task with clean engine teardown.
+    Applies admin-managed API keys from the DB first so workers use the same
+    credentials as the API process."""
     async def wrapper():
-        from app.db.session import engine
+        from app.db.session import AsyncSessionLocal, engine
+        from app.services.runtime_config import apply_credentials_to_settings
         try:
+            async with AsyncSessionLocal() as db:
+                await apply_credentials_to_settings(db)
             return await coro
         finally:
             await engine.dispose()

@@ -1,0 +1,85 @@
+# Render Blueprint — one-click deploy of the QuantPulse backend stack.
+# In Render: New → Blueprint → connect this repo. Render reads this file and
+# provisions everything below. Set the secret env vars marked "sync: false"
+# when prompted (or later in each service's Environment tab / the admin panel).
+#
+# NOTE: The Next.js frontend is deployed separately on Vercel (root dir
+# `frontend`). After this backend is live, set the frontend's
+# NEXT_PUBLIC_API_URL to the API service URL Render gives you.
+
+databases:
+  - name: quantpulse-db
+    databaseName: quantpulse
+    user: quantpulse
+    plan: free # upgrade to `starter`+ for production durability
+
+services:
+  # --- Redis (cache, rate limiting, pub/sub, Celery broker) ---
+  - type: redis
+    name: quantpulse-redis
+    plan: free
+    ipAllowList: [] # only internal services connect
+    maxmemoryPolicy: noeviction
+
+  # --- FastAPI API ---
+  - type: web
+    name: quantpulse-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    healthCheckPath: /api/health
+    envVars: &backend_env
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quantpulse-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService: { type: redis, name: quantpulse-redis, property: connectionString }
+      - key: CELERY_BROKER_URL
+        fromService: { type: redis, name: quantpulse-redis, property: connectionString }
+      - key: CELERY_RESULT_BACKEND
+        fromService: { type: redis, name: quantpulse-redis, property: connectionString }
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true # Render generates a strong random value
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false # set to your Vercel URL, e.g. https://algorithm-agent-web.vercel.app
+      - key: FIRST_ADMIN_EMAIL
+        sync: false
+      - key: FIRST_ADMIN_PASSWORD
+        sync: false
+      # Optional API keys — leave blank and add them in the admin panel instead.
+      - { key: COINGECKO_API_KEY, sync: false }
+      - { key: ALPHA_VANTAGE_API_KEY, sync: false }
+      - { key: FINNHUB_API_KEY, sync: false }
+      - { key: FMP_API_KEY, sync: false }
+      - { key: FRED_API_KEY, sync: false }
+      - { key: NEWSAPI_API_KEY, sync: false }
+      - { key: MARKETAUX_API_KEY, sync: false }
+      - { key: CRYPTOPANIC_API_KEY, sync: false }
+      - { key: TWITTER_BEARER_TOKEN, sync: false }
+      - { key: AI_PROVIDER, value: none }
+
+  # --- Celery worker (market sync, scanner, signals, news, trade monitor…) ---
+  - type: worker
+    name: quantpulse-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    dockerCommand: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    envVars: *backend_env
+
+  # --- Celery beat (scheduler that fires the periodic jobs) ---
+  - type: worker
+    name: quantpulse-beat
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    dockerCommand: celery -A app.workers.celery_app beat --loglevel=info
+    envVars: *backend_env

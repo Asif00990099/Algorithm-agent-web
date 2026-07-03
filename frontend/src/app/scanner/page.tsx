@@ -12,10 +12,16 @@ interface Whale {
   symbol: string; price: number; quantity: number; notional_usd: number;
   side: string; time: number;
 }
+interface Liquidation {
+  symbol: string; side_liquidated: string; price: number; quantity: number;
+  notional_usd: number; time: number;
+}
 interface Scan {
   gainers: Row[]; losers: Row[]; most_active: Row[]; highest_volume: Row[];
   highest_volatility: Row[]; breakouts: Row[]; breakdowns: Row[];
-  whale_trades: Whale[]; new_listings: { id: string; symbol: string; name: string }[];
+  whale_trades: Whale[]; liquidations: Liquidation[];
+  new_listings: { id: string; symbol: string; name: string }[];
+  delistings: { symbol: string; status: string; base_asset: string }[];
   pairs_scanned: number;
 }
 
@@ -103,6 +109,29 @@ export default function ScannerPage() {
             </section>
 
             <section className="glass p-4">
+              <h3 className="mb-3 font-bold">💥 Liquidations (Binance futures)</h3>
+              <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+                {(data.liquidations ?? []).map((l, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-white/[0.04]">
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ${l.side_liquidated === 'long' ? 'bg-bear/15 text-bear' : 'bg-bull/15 text-bull'}`}>
+                        {l.side_liquidated} liq.
+                      </span>
+                      <span className="font-semibold">{l.symbol}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-bold">{fmtCompact(l.notional_usd)}</div>
+                      <div className="text-xs text-slate-400">{fmtUsd(l.price)} · {fmtTime(l.time / 1000)}</div>
+                    </div>
+                  </div>
+                ))}
+                {(data.liquidations ?? []).length === 0 && (
+                  <p className="text-sm text-slate-400">No liquidations captured in the recent window.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="glass p-4">
               <h3 className="mb-3 font-bold">🆕 New listings (CoinGecko)</h3>
               <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                 {data.new_listings.map((l) => (
@@ -112,6 +141,21 @@ export default function ScannerPage() {
                   </div>
                 ))}
                 {data.new_listings.length === 0 && <p className="text-sm text-slate-400">No new listings reported.</p>}
+              </div>
+            </section>
+
+            <section className="glass p-4">
+              <h3 className="mb-3 font-bold">🚫 Delistings &amp; halts (Binance)</h3>
+              <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+                {(data.delistings ?? []).map((d) => (
+                  <div key={d.symbol} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm dark:bg-white/[0.04]">
+                    <span className="font-semibold">{d.symbol}</span>
+                    <span className="badge bg-bear/15 uppercase text-bear">{d.status}</span>
+                  </div>
+                ))}
+                {(data.delistings ?? []).length === 0 && (
+                  <p className="text-sm text-slate-400">No pairs currently halted or delisted.</p>
+                )}
               </div>
             </section>
           </div>

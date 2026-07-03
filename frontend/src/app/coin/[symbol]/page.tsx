@@ -37,6 +37,7 @@ interface Indicators {
   ichimoku_tenkan: number | null; ichimoku_kijun: number | null;
   support: number[]; resistance: number[]; fibonacci: Record<string, number>;
   trend_strength: number; momentum: number;
+  year_high: number | null; year_low: number | null;
 }
 
 interface Derivatives {
@@ -189,6 +190,7 @@ export default function CoinPage() {
           />
           <IndicatorRow name="Open interest" value={deriv?.open_interest ? fmtCompact(parseFloat(deriv.open_interest.openInterest)) : '—'} />
           <IndicatorRow name="24h range" value={`${fmtUsd(md.low_24h.usd)} – ${fmtUsd(md.high_24h.usd)}`} />
+          <IndicatorRow name="52-week range" value={`${fmtUsd(ind?.year_low)} – ${fmtUsd(ind?.year_high)}`} />
           <IndicatorRow name="7d / 30d" value={
             <>
               <span className={pctClass(md.price_change_percentage_7d)}>{fmtPct(md.price_change_percentage_7d)}</span>

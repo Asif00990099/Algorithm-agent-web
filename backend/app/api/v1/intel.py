@@ -12,8 +12,10 @@ from app.services.sentiment.analyzer import aggregate, analyze_text
 from app.services.sentiment.sources import (
     CRYPTO_SUBREDDITS,
     RSS_FEEDS,
+    TELEGRAM_CHANNELS,
     fetch_reddit_posts,
     fetch_rss,
+    fetch_telegram_channel,
     fetch_tweets,
 )
 
@@ -56,6 +58,17 @@ async def twitter_feed(q: str = Query("bitcoin", max_length=64), limit: int = Qu
     return {"query": q, "tweets": tweets,
             "aggregate": aggregate(t["text"] for t in tweets),
             "note": None if tweets else "Set TWITTER_BEARER_TOKEN to enable the X feed"}
+
+
+@router.get("/social/telegram")
+async def telegram_feed(channel: str = Query("cointelegraph", max_length=64),
+                        limit: int = Query(20, ge=1, le=50)):
+    """Public Telegram channels via the keyless t.me/s/ web preview."""
+    posts = await fetch_telegram_channel(channel, limit)
+    for p in posts:
+        p["sentiment"] = analyze_text(p["text"]).to_dict()
+    return {"channel": channel, "default_channels": TELEGRAM_CHANNELS, "posts": posts,
+            "aggregate": aggregate(p["text"] for p in posts)}
 
 
 @router.get("/social/rss")

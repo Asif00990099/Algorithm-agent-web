@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
+  // standalone output is for the Docker image; Vercel uses its own build output
+  output: process.env.VERCEL ? undefined : 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'assets.coingecko.com' },

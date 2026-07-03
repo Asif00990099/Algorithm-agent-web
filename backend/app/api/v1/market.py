@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.cache import cache_get
 from app.services.indicators.ta import compute_snapshot
-from app.services.market import binance, coingecko, macro
+from app.services.market import binance, coingecko, macro, onchain
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -70,7 +70,23 @@ async def indicators(symbol: str, interval: str = "1h", limit: int = Query(300, 
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Not enough candle data for {symbol}")
     ohlcv = binance.klines_to_ohlcv(data)
     snap = compute_snapshot(ohlcv["high"], ohlcv["low"], ohlcv["close"], ohlcv["volume"])
-    return {"symbol": symbol.upper(), "interval": interval, **snap.to_dict()}
+
+    # 52-week range from daily candles
+    year_high = year_low = None
+    daily = await binance.get_klines(symbol, "1d", limit=365)
+    if daily:
+        year_high = max(float(k[2]) for k in daily)
+        year_low = min(float(k[3]) for k in daily)
+
+    return {"symbol": symbol.upper(), "interval": interval,
+            "year_high": year_high, "year_low": year_low, **snap.to_dict()}
+
+
+@router.get("/onchain")
+async def onchain_dashboard():
+    """BTC on-chain metrics: fees, hashrate, difficulty, mempool, network stats."""
+    data = await onchain.get_onchain_dashboard()
+    return data
 
 
 @router.get("/ticker/{symbol}")

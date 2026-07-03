@@ -1,10 +1,12 @@
 """Social data collectors: Reddit public JSON, X (Twitter) API v2 (optional
 bearer token), Telegram public channel RSS bridges and finance RSS feeds."""
 import logging
+import re
 from typing import List
 
 import feedparser
 
+from app.core.cache import cache_get, cache_set
 from app.core.config import settings
 from app.services.market.http import cached_get_json, get_http
 
@@ -63,6 +65,43 @@ async def fetch_tweets(query: str, limit: int = 25) -> List[dict]:
             for t in data.get("data", [])]
 
 
+TELEGRAM_CHANNELS = ["cointelegraph", "decryptmedia", "unfolded"]
+
+_tg_message_re = re.compile(
+    r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', re.DOTALL)
+_tag_re = re.compile(r"<[^>]+>")
+
+
+async def fetch_telegram_channel(channel: str, limit: int = 20) -> List[dict]:
+    """Public Telegram channels via the keyless t.me/s/<channel> web preview."""
+    channel = re.sub(r"[^A-Za-z0-9_]", "", channel)[:64]
+    if not channel:
+        return []
+    cache_key = f"telegram:{channel}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached[:limit]
+    try:
+        resp = await get_http().get(f"https://t.me/s/{channel}")
+        resp.raise_for_status()
+        html = resp.text
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Telegram channel fetch failed %s: %s", channel, exc)
+        return []
+    posts = []
+    for match in _tg_message_re.findall(html)[-limit:]:
+        text = _tag_re.sub(" ", match)
+        text = (text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&quot;", '"').replace("&#39;", "'"))
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            posts.append({"channel": channel, "text": text[:600],
+                          "url": f"https://t.me/s/{channel}"})
+    posts.reverse()  # newest first
+    await cache_set(cache_key, posts, ttl=300)
+    return posts
+
+
 async def fetch_rss(feed_key: str, limit: int = 20) -> List[dict]:
     url = RSS_FEEDS.get(feed_key)
     if not url:
@@ -95,7 +134,7 @@ async def fetch_all_rss(limit_per_feed: int = 10) -> List[dict]:
 
 async def collect_symbol_texts(symbol_query: str) -> dict:
     """Gather raw texts about a symbol from every configured source."""
-    texts: dict[str, List[str]] = {"reddit": [], "twitter": [], "rss": []}
+    texts: dict[str, List[str]] = {"reddit": [], "twitter": [], "rss": [], "telegram": []}
     for sub in CRYPTO_SUBREDDITS[:2]:
         posts = await fetch_reddit_posts(sub)
         texts["reddit"].extend(
@@ -107,4 +146,8 @@ async def collect_symbol_texts(symbol_query: str) -> dict:
         blob = f"{item['title']} {item['summary']}"
         if symbol_query.lower() in blob.lower():
             texts["rss"].append(blob)
+    for channel in TELEGRAM_CHANNELS[:2]:
+        for post in await fetch_telegram_channel(channel, 15):
+            if symbol_query.lower() in post["text"].lower():
+                texts["telegram"].append(post["text"])
     return texts

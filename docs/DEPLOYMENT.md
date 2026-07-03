@@ -1,5 +1,23 @@
 # Deployment guide
 
+## 0. Vercel (frontend)
+
+The Next.js frontend deploys to Vercel as-is; the backend (FastAPI + Celery +
+PostgreSQL + Redis + WebSockets) **cannot run on Vercel's serverless platform**
+and must live on a container host (sections 1–2 below, or Railway/Render/Fly).
+
+1. Import the repo in Vercel and set **Root Directory = `frontend`**
+   (framework auto-detects as Next.js; no vercel.json needed).
+2. Set environment variables in the Vercel project (they are baked into the
+   client bundle at build time — redeploy after changing them):
+   - `NEXT_PUBLIC_API_URL=https://api.your-domain.com`
+   - `NEXT_PUBLIC_WS_URL=wss://api.your-domain.com/api/v1/ws/stream`
+3. On the backend, add the Vercel domain to `ALLOWED_ORIGINS`
+   (e.g. `https://your-app.vercel.app,https://your-domain.com`).
+
+Until a backend URL is configured the UI deploys fine and renders graceful
+"data unavailable" states — no fake data is ever shown.
+
 ## 1. Docker Compose (single host)
 
 ```bash

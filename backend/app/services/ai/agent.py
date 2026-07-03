@@ -153,7 +153,7 @@ async def analyze_symbol(symbol: str, timeframe: str = "1h",
     if include_sentiment:
         base_asset = symbol.upper().replace("USDT", "").replace("USDC", "").replace("BUSD", "")
         texts = await collect_symbol_texts(base_asset)
-        agg = aggregate(texts["reddit"] + texts["twitter"] + texts["rss"])
+        agg = aggregate(texts["reddit"] + texts["twitter"] + texts["rss"] + texts["telegram"])
         if agg["sample_size"] > 0:
             sentiment_score = agg["score"]
         fng = await get_fear_greed(1)

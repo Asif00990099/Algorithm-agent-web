@@ -14,6 +14,7 @@ from app.core.cache import cache_set, publish
 from app.services.market.binance import SPOT, get_ticker_24h
 from app.services.market.coingecko import get_new_listings
 from app.services.market.http import cached_get_json
+from app.services.scanner.liquidations import get_recent_liquidations, sample_liquidations
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,23 @@ async def fetch_whale_trades(symbols: List[str], limit: int = 60) -> List[dict]:
     return whales[:50]
 
 
+async def fetch_delistings() -> List[dict]:
+    """Symbols whose trading status is no longer TRADING on Binance spot
+    (BREAK/HALT/END_OF_DAY) — the exchange's delisting/halt signal."""
+    info = await cached_get_json(f"{SPOT}/api/v3/exchangeInfo",
+                                 params={"permissions": "SPOT"},
+                                 cache_key="bn:exchangeInfo", ttl=1800)
+    if not info:
+        return []
+    out = []
+    for sym in info.get("symbols", []):
+        status = sym.get("status")
+        if status and status != "TRADING" and sym.get("quoteAsset") == QUOTE:
+            out.append({"symbol": sym.get("symbol"), "status": status,
+                        "base_asset": sym.get("baseAsset")})
+    return out[:50]
+
+
 async def run_scan() -> Optional[dict]:
     tickers = await get_ticker_24h()
     if not isinstance(tickers, list):
@@ -92,6 +110,13 @@ async def run_scan() -> Optional[dict]:
 
     whales = await fetch_whale_trades([r["symbol"] for r in by_volume])
 
+    # liquidations: sample the futures force-order stream this cycle, then
+    # merge with the rolling window already stored in Redis
+    fresh_liqs = await sample_liquidations(duration_seconds=6.0)
+    liquidations = fresh_liqs or await get_recent_liquidations(50)
+
+    delistings = await fetch_delistings()
+
     new_listings = await get_new_listings()
     listings = [{"id": c.get("id"), "symbol": c.get("symbol"), "name": c.get("name"),
                  "activated_at": c.get("activated_at")}
@@ -106,7 +131,9 @@ async def run_scan() -> Optional[dict]:
         "breakouts": breakouts,
         "breakdowns": breakdowns,
         "whale_trades": whales,
+        "liquidations": liquidations[:50],
         "new_listings": listings,
+        "delistings": delistings,
         "pairs_scanned": len(rows),
     }
     await cache_set("scanner:latest", result, ttl=180)

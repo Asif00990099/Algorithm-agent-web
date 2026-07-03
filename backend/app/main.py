@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # apply any API keys saved via the admin panel on top of env vars
+    from app.db.session import AsyncSessionLocal
+    from app.services.runtime_config import apply_credentials_to_settings
+    async with AsyncSessionLocal() as db:
+        await apply_credentials_to_settings(db)
     logger.info("%s started (%s)", settings.APP_NAME, settings.ENVIRONMENT)
     yield
     await close_http()

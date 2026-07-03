@@ -12,6 +12,7 @@ from app.core.deps import require_admin
 from app.db.session import get_db
 from app.models import AppSetting, Article, AuditLog, PromptTemplate, Signal, Strategy, Trade, User, UserRole
 from app.schemas.common import AdminUserUpdateRequest, UserOut
+from app.services import runtime_config
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -111,6 +112,42 @@ async def upsert_prompt(key: str, body: PromptIn, db: AsyncSession = Depends(get
         row.content, row.description, row.is_active = body.content, body.description, body.is_active
     await db.commit()
     return {"key": key, "updated": True}
+
+
+# ------------------------------------------------------------- API management
+
+class ApiKeyIn(BaseModel):
+    value: str = Field(min_length=1, max_length=512)
+
+
+@router.get("/api-keys")
+async def list_api_keys(db: AsyncSession = Depends(get_db)):
+    """Status of every external API provider (values masked)."""
+    return await runtime_config.list_status(db)
+
+
+@router.put("/api-keys/{provider}")
+async def set_api_key(provider: str, body: ApiKeyIn,
+                      db: AsyncSession = Depends(get_db)):
+    if provider not in runtime_config.PROVIDERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            f"Unknown provider; allowed: {sorted(runtime_config.PROVIDERS)}")
+    await runtime_config.set_credential(db, provider, body.value.strip())
+    db.add(AuditLog(created_at=datetime.now(timezone.utc), action="admin.api_key.set",
+                    resource=provider, detail="value updated"))
+    await db.commit()
+    return {"provider": provider, "configured": True,
+            "masked": runtime_config.mask(body.value.strip())}
+
+
+@router.delete("/api-keys/{provider}", status_code=204)
+async def delete_api_key(provider: str, db: AsyncSession = Depends(get_db)):
+    if provider not in runtime_config.PROVIDERS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown provider")
+    await runtime_config.delete_credential(db, provider)
+    db.add(AuditLog(created_at=datetime.now(timezone.utc), action="admin.api_key.delete",
+                    resource=provider))
+    await db.commit()
 
 
 # ------------------------------------------------------------------ settings

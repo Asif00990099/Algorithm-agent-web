@@ -148,3 +148,16 @@ class AppSetting(Base, TimestampMixin):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+
+class ApiCredential(Base, TimestampMixin):
+    """External API keys managed from the admin panel's API Management section.
+
+    The value is stored Fernet-encrypted (never plaintext) and applied onto the
+    live settings object at startup and whenever changed, so it overrides the
+    matching environment variable without a redeploy."""
+    __tablename__ = "api_credentials"
+
+    provider: Mapped[str] = mapped_column(String(48), primary_key=True)  # e.g. coingecko, finnhub
+    encrypted_value: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

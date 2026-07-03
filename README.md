@@ -43,7 +43,27 @@ scanner and a full admin dashboard.
 | Jobs | Celery + Celery Beat (market sync, scanner, signals, news, sentiment, calendar, trade monitor, evaluation) |
 | Infra | Docker Compose, GitHub Actions CI, AWS deployment guide |
 
-## Quick start
+## Deploy (two halves)
+
+This platform has **two deployable halves** — the Vercel frontend and a separately
+hosted backend. The site cannot fetch data or sign users up until **both** are live.
+
+| Half | Host | How |
+|------|------|-----|
+| Frontend (Next.js UI) | **Vercel** | Root Directory `frontend`; set `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_WS_URL` to the backend URL |
+| Backend (API + workers + DB + Redis) | **Render / Railway / any Docker host** | one-click below, or `docker compose up` |
+
+### One-click backend (Render)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Asif00990099/Algorithm-agent-web)
+
+Render reads [`render.yaml`](render.yaml) and provisions the API, Celery worker, beat
+scheduler, PostgreSQL and Redis. When prompted, set `ALLOWED_ORIGINS` (your Vercel URL),
+`FIRST_ADMIN_EMAIL`, and `FIRST_ADMIN_PASSWORD`. Then copy the API URL into Vercel's env
+vars and redeploy the frontend. Add data API keys afterwards in the admin panel
+(`/admin` → API Management) — no redeploy needed.
+
+## Quick start (local)
 
 ```bash
 cp .env.example .env          # optionally add free API keys

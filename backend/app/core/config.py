@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
 
     # --- Initial admin (seeded on first boot) ---
-    FIRST_ADMIN_EMAIL: str = "admin@quantpulse.local"
+    FIRST_ADMIN_EMAIL: str = "admin@quantpulse.io"
     FIRST_ADMIN_PASSWORD: str = "ChangeMe!12345"
 
     # --- Market data API keys (all optional; free tiers) ---

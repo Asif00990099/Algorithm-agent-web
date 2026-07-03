@@ -5,6 +5,7 @@ import { useAuthed, usePoll } from '@/lib/hooks';
 import { fmtTime } from '@/lib/format';
 import { ErrorBox, SectionTitle, Spinner, StatCard } from '@/components/ui';
 import ApiKeyManager from '@/components/ApiKeyManager';
+import AdminSettings from '@/components/AdminSettings';
 
 interface Stats {
   users: number; trades: number; trades_24h: number; signals: number;
@@ -64,6 +65,8 @@ export default function AdminPage() {
       </section>
 
       {msg && <ErrorBox message={msg} />}
+
+      <AdminSettings />
 
       <ApiKeyManager />
 

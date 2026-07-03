@@ -52,15 +52,30 @@ app.add_middleware(
 )
 
 
+# API paths always reachable even during maintenance (so admins can recover).
+_MAINTENANCE_ALLOW = ("/auth", "/admin", "/meta", "/users/me")
+
+
 @app.middleware("http")
 async def security_headers_and_rate_limit(request: Request, call_next):
-    # global per-IP rate limit (auth endpoints add their own stricter one)
-    if request.url.path.startswith(settings.API_V1_PREFIX):
+    path = request.url.path
+    if path.startswith(settings.API_V1_PREFIX):
+        # global per-IP rate limit (auth endpoints add their own stricter one)
         allowed = await rate_limit_check(f"global:{client_ip(request)}",
                                          settings.RATE_LIMIT_PER_MINUTE)
         if not allowed:
             return ORJSONResponse({"detail": "Rate limit exceeded"},
                                   status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+        # maintenance mode: block public API, allow auth/admin/meta so admins recover
+        subpath = path[len(settings.API_V1_PREFIX):]
+        if request.method not in ("OPTIONS",) and not any(subpath.startswith(p) for p in _MAINTENANCE_ALLOW):
+            from app.db.session import AsyncSessionLocal
+            from app.services.app_settings import is_maintenance_mode
+            async with AsyncSessionLocal() as db:
+                on, message = await is_maintenance_mode(db)
+            if on:
+                return ORJSONResponse({"detail": message, "maintenance": True},
+                                      status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
@@ -82,6 +97,7 @@ app.include_router(signals.backtest_router, prefix=API)
 app.include_router(content.router, prefix=API)
 app.include_router(content.cms_router, prefix=API)
 app.include_router(content.media_router, prefix=API)
+app.include_router(content.meta_router, prefix=API)
 app.include_router(intel.router, prefix=API)
 app.include_router(admin.router, prefix=API)
 app.include_router(ws.router, prefix=API)

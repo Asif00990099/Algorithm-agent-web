@@ -18,7 +18,30 @@ and must live on a container host (sections 1–2 below, or Railway/Render/Fly).
 Until a backend URL is configured the UI deploys fine and renders graceful
 "data unavailable" states — no fake data is ever shown.
 
-## 0.5 Free deploy — no credit card (Supabase + Koyeb)
+## 0.4 Free deploy — Hugging Face Spaces (no card, recommended)
+
+The most reliably free, no-credit-card backend host. Uses the ready-made files in
+[`deploy/huggingface/`](../deploy/huggingface/).
+
+1. **Database:** create a free Postgres at **supabase.com** (or neon.tech). Copy its
+   connection URI and append `?ssl=require` (see the Supabase steps in §0.5).
+2. **Space:** https://huggingface.co/new-space → SDK **Docker** → Blank → Create.
+3. Add the two files from `deploy/huggingface/` (`Dockerfile` + `README.md`) to the
+   Space (upload or paste). The Dockerfile clones this repo's backend and runs it.
+4. **Space → Settings → Variables and secrets** → add as *Secrets*: `DATABASE_URL`,
+   `SECRET_KEY`, `ENCRYPTION_KEY`, `ENVIRONMENT=production`, `ALLOWED_ORIGINS`,
+   `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_PASSWORD`, and any data API keys. Leave
+   `REDIS_URL` unset (Redis is optional).
+5. Space builds → URL is `https://<user>-<space>.hf.space`. Point Vercel's
+   `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_WS_URL` at it and redeploy.
+
+Update after code changes: open the Space → ⋮ → **Factory reboot**.
+
+**Other free, GitHub-auto-deploy hosts (Render-style):** Back4App Containers and
+Northflank both have free tiers that build a Dockerfile from GitHub — set the work
+directory / Dockerfile path to `backend/` and use the same env vars.
+
+## 0.5 Free deploy — Supabase (DB) + container host
 
 The backend runs on just a **PostgreSQL database** — Redis and the Celery workers
 are optional. Without them you lose only *scheduled background automation* (news

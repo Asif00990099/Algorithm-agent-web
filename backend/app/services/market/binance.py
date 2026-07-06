@@ -21,13 +21,18 @@ INTERVALS = {"1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"}
 
 
 async def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> Optional[List[list]]:
-    """OHLCV candles: [open_time, open, high, low, close, volume, close_time, ...]"""
+    """OHLCV candles: [open_time, open, high, low, close, volume, close_time, ...].
+    Falls back to CryptoCompare when Binance is unreachable (geo-blocked cloud host)."""
     if interval not in INTERVALS:
         interval = "1h"
-    return await cached_get_json(
+    data = await cached_get_json(
         f"{SPOT}/api/v3/klines",
         params={"symbol": symbol.upper(), "interval": interval, "limit": min(limit, 1000)},
         cache_key=f"bn:klines:{symbol.upper()}:{interval}:{limit}", ttl=30)
+    if data:
+        return data
+    from app.services.market import cryptocompare
+    return await cryptocompare.get_klines(symbol, interval, limit)
 
 
 async def get_ticker_24h(symbol: Optional[str] = None) -> Optional[dict | list]:
@@ -47,9 +52,12 @@ async def get_price(symbol: str) -> Optional[float]:
                                  params={"symbol": symbol.upper()},
                                  cache_key=f"bn:price:{symbol.upper()}", ttl=5)
     try:
-        return float(data["price"]) if data else None
+        if data and data.get("price"):
+            return float(data["price"])
     except (KeyError, TypeError, ValueError):
-        return None
+        pass
+    from app.services.market import cryptocompare
+    return await cryptocompare.get_price(symbol)
 
 
 async def get_funding_rate(symbol: str) -> Optional[dict]:

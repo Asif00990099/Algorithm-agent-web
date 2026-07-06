@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     FINNHUB_API_KEY: str = ""
     FMP_API_KEY: str = ""
     FRED_API_KEY: str = ""
+    # CryptoCompare: globally-accessible OHLCV/price source used as a fallback
+    # when Binance is geo-blocked (e.g. on US cloud hosts). Free, key optional.
+    CRYPTOCOMPARE_API_KEY: str = ""
 
     # --- News / social API keys (optional) ---
     NEWSAPI_API_KEY: str = ""

@@ -31,8 +31,10 @@ async def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> Opt
         cache_key=f"bn:klines:{symbol.upper()}:{interval}:{limit}", ttl=30)
     if data:
         return data
-    from app.services.market import cryptocompare
-    return await cryptocompare.get_klines(symbol, interval, limit)
+    # Binance blocked (e.g. cloud host) → try globally-reachable sources
+    from app.services.market import coinbase, cryptocompare
+    return (await coinbase.get_klines(symbol, interval, limit)
+            or await cryptocompare.get_klines(symbol, interval, limit))
 
 
 async def get_ticker_24h(symbol: Optional[str] = None) -> Optional[dict | list]:
@@ -56,8 +58,9 @@ async def get_price(symbol: str) -> Optional[float]:
             return float(data["price"])
     except (KeyError, TypeError, ValueError):
         pass
-    from app.services.market import cryptocompare
-    return await cryptocompare.get_price(symbol)
+    from app.services.market import coinbase, cryptocompare
+    return (await coinbase.get_price(symbol)
+            or await cryptocompare.get_price(symbol))
 
 
 async def get_funding_rate(symbol: str) -> Optional[dict]:

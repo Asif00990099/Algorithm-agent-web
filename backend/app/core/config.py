@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     BINANCE_API_KEY: str = ""            # only needed for live trading
     BINANCE_API_SECRET: str = ""
     BINANCE_BASE_URL: str = "https://api.binance.com"
+    # geo-neutral public market-data mirror (works from cloud/US hosts)
+    BINANCE_DATA_URL: str = "https://data-api.binance.vision"
     BINANCE_TESTNET_BASE_URL: str = "https://testnet.binance.vision"
     ALPHA_VANTAGE_API_KEY: str = ""
     FINNHUB_API_KEY: str = ""
@@ -75,6 +77,12 @@ class Settings(BaseSettings):
     MAX_RISK_PER_TRADE_PCT: float = 2.0
     MAX_OPEN_POSITIONS: int = 10
     DEFAULT_QUOTE_ASSET: str = "USDT"
+
+    # Run the periodic jobs (signals, news, scanner, calendar…) inside the API
+    # process itself — for single-service deploys with no separate Celery worker
+    # (Hugging Face, one Render service, etc.). Set false when running dedicated
+    # Celery workers (docker-compose) to avoid double execution.
+    RUN_BACKGROUND_JOBS: bool = True
 
     # --- Worker cadence (seconds) ---
     MARKET_SYNC_INTERVAL: int = 60

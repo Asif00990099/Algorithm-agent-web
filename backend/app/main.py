@@ -27,8 +27,15 @@ async def lifespan(app: FastAPI):
     from app.services.runtime_config import apply_credentials_to_settings
     async with AsyncSessionLocal() as db:
         await apply_credentials_to_settings(db)
+    # single-service deploys: run periodic jobs in-process (no Celery needed)
+    if settings.RUN_BACKGROUND_JOBS:
+        from app.workers import scheduler
+        scheduler.start()
     logger.info("%s started (%s)", settings.APP_NAME, settings.ENVIRONMENT)
     yield
+    if settings.RUN_BACKGROUND_JOBS:
+        from app.workers import scheduler
+        await scheduler.stop()
     await close_http()
 
 

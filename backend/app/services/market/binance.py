@@ -10,7 +10,11 @@ from urllib.parse import urlencode
 from app.core.config import settings
 from app.services.market.http import cached_get_json, get_http
 
-SPOT = settings.BINANCE_BASE_URL
+# Public market data uses Binance's geo-neutral data mirror (data-api.binance.vision),
+# which is NOT region-blocked like api.binance.com — essential when the backend runs
+# on a US/cloud host (Hugging Face, Render, Railway, etc.). Signed/trading requests
+# still use the real api.binance.com (settings.BINANCE_BASE_URL).
+SPOT = settings.BINANCE_DATA_URL
 FUTURES = "https://fapi.binance.com"
 
 INTERVALS = {"1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"}
@@ -94,7 +98,7 @@ async def signed_request(method: str, path: str, api_key: str, api_secret: str,
                          params: Optional[dict] = None, testnet: bool = True) -> dict:
     """Signed spot request used by the live executor. Raises httpx.HTTPStatusError
     on rejection so callers can log exchange errors verbatim."""
-    base = settings.BINANCE_TESTNET_BASE_URL if testnet else SPOT
+    base = settings.BINANCE_TESTNET_BASE_URL if testnet else settings.BINANCE_BASE_URL
     params = dict(params or {})
     params["timestamp"] = int(time.time() * 1000)
     params["recvWindow"] = 5000

@@ -6,45 +6,49 @@ Neon, Heroku) so a user can paste their pooler URL verbatim into DATABASE_URL:
 * ``postgres://`` / ``postgresql://`` are coerced to the asyncpg driver in
   ``config._normalize_db_url``.
 * libpq query params that asyncpg does not understand (``sslmode``, ``ssl``,
-  ``channel_binding``, ``pgbouncer``…) are stripped from the URL and translated
-  into asyncpg ``connect_args``.
+  ``channel_binding``, ``pgbouncer``…) are stripped and translated into
+  asyncpg ``connect_args``.
 * Managed hosts require TLS, so an SSL context is attached automatically.
 * PgBouncer / Supabase *transaction* pooler (port 6543) does not support the
   prepared statements asyncpg caches, so statement caching is disabled there.
+
+The URL is parsed with SQLAlchemy's ``make_url`` rather than ``urllib.parse``:
+recent CPython 3.11 security patches make ``urlsplit`` raise ValueError on
+valid pooler hostnames (e.g. ``aws-1-ap-southeast-2.pooler.supabase.com``).
 """
 import ssl
 from typing import AsyncGenerator
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
 
 # asyncpg takes SSL / statement-cache settings via connect_args, NOT via the URL
 # query string (those are libpq/psycopg options). Drop them from the URL here.
-_ASYNCPG_STRIP = {"sslmode", "ssl", "channel_binding", "pgbouncer",
-                  "options", "target_session_attrs"}
+_ASYNCPG_STRIP = ("sslmode", "ssl", "channel_binding", "pgbouncer",
+                  "options", "target_session_attrs")
 _MANAGED_HOSTS = ("supabase.co", "supabase.com", "pooler.supabase.com",
                   "neon.tech", "render.com", "amazonaws.com")
 
 
-def _build_engine_args(url: str) -> tuple[str, dict]:
-    """Return a cleaned URL + engine kwargs suited to the target database."""
+def _build_engine_args(raw_url: str):
+    """Return a cleaned SQLAlchemy URL + engine kwargs for the target database."""
     kwargs: dict = {"echo": settings.DB_ECHO, "pool_pre_ping": True}
 
-    if url.startswith("sqlite"):
-        return url, kwargs
+    if raw_url.startswith("sqlite"):
+        return raw_url, kwargs
 
+    url = make_url(raw_url)
     kwargs.update(pool_size=settings.DB_POOL_SIZE, max_overflow=settings.DB_MAX_OVERFLOW)
 
-    parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query))
-    wants_ssl = query.get("sslmode", "") not in ("disable",) or bool(query.get("ssl"))
+    query = dict(url.query)
+    sslmode = str(query.get("sslmode", "")).lower()
+    wants_ssl = (sslmode not in ("", "disable")) or ("ssl" in query)
     # strip libpq-only params asyncpg would choke on
-    cleaned_q = {k: v for k, v in query.items() if k.lower() not in _ASYNCPG_STRIP}
-    cleaned_url = urlunsplit(parts._replace(query=urlencode(cleaned_q)))
+    url = url.difference_update_query(_ASYNCPG_STRIP)
 
-    host = (parts.hostname or "").lower()
+    host = (url.host or "").lower()
     is_managed = any(h in host for h in _MANAGED_HOSTS)
     connect_args: dict = {}
 
@@ -58,12 +62,12 @@ def _build_engine_args(url: str) -> tuple[str, dict]:
 
     # Supabase transaction pooler (6543) + any PgBouncer front end can't reuse
     # asyncpg's prepared statements — disable the cache to avoid errors.
-    if parts.port == 6543 or query.get("pgbouncer") == "true":
+    if url.port == 6543 or str(query.get("pgbouncer", "")).lower() == "true":
         connect_args["statement_cache_size"] = 0
 
     if connect_args:
         kwargs["connect_args"] = connect_args
-    return cleaned_url, kwargs
+    return url, kwargs
 
 
 _url, engine_kwargs = _build_engine_args(settings.DATABASE_URL)

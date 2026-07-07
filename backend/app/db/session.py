@@ -15,14 +15,26 @@ Neon, Heroku) so a user can paste their pooler URL verbatim into DATABASE_URL:
 The URL is parsed with SQLAlchemy's ``make_url`` rather than ``urllib.parse``:
 recent CPython 3.11 security patches make ``urlsplit`` raise ValueError on
 valid pooler hostnames (e.g. ``aws-1-ap-southeast-2.pooler.supabase.com``).
+
+Resilience: on a single-service deploy (Hugging Face, one container) a bad
+DATABASE_URL — wrong password, unreachable host — must not crash-loop the whole
+app into a dead "Runtime error" page. At import we probe the configured Postgres
+once; if it is unreachable we log ONE clear line and fall back to a local SQLite
+file so the site still boots (data is not persistent until Postgres works).
 """
+import asyncio
+import logging
+import os
 import ssl
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # asyncpg takes SSL / statement-cache settings via connect_args, NOT via the URL
 # query string (those are libpq/psycopg options). Drop them from the URL here.
@@ -30,6 +42,11 @@ _ASYNCPG_STRIP = ("sslmode", "ssl", "channel_binding", "pgbouncer",
                   "options", "target_session_attrs")
 _MANAGED_HOSTS = ("supabase.co", "supabase.com", "pooler.supabase.com",
                   "neon.tech", "render.com", "amazonaws.com")
+
+# Local fallback when the managed Postgres cannot be reached. Prefer the mounted
+# /data dir (Hugging Face) so the file survives soft restarts; else cwd.
+_SQLITE_FALLBACK = ("sqlite+aiosqlite:////data/quantpulse.db"
+                    if os.path.isdir("/data") else "sqlite+aiosqlite:///./quantpulse_fallback.db")
 
 
 def _build_engine_args(raw_url: str):
@@ -70,9 +87,52 @@ def _build_engine_args(raw_url: str):
     return url, kwargs
 
 
-_url, engine_kwargs = _build_engine_args(settings.DATABASE_URL)
+def _postgres_reachable(eng) -> bool:
+    """Open one connection and run SELECT 1. Returns False (with a clear log) on
+    any failure so the caller can fall back to local storage. Disposes the pool
+    afterwards so the app's real event loop starts with fresh connections."""
+    async def _probe():
+        try:
+            async with eng.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+        finally:
+            await eng.dispose()
 
-engine = create_async_engine(_url, **engine_kwargs)
+    try:
+        asyncio.get_running_loop()
+        return True  # a loop is already running (e.g. tests) — skip the probe
+    except RuntimeError:
+        pass
+    try:
+        asyncio.run(asyncio.wait_for(_probe(), timeout=12))
+        return True
+    except Exception as exc:  # noqa: BLE001 — any failure means "not usable"
+        msg = str(exc) or exc.__class__.__name__
+        logger.error("=" * 70)
+        logger.error("DATABASE CONNECTION FAILED: %s", msg)
+        if "password" in msg.lower():
+            logger.error("→ The DATABASE_URL password is wrong. Reset it in Supabase "
+                         "(Settings → Database → Reset password) and update the secret.")
+        elif "does not exist" in msg.lower() or "translate host" in msg.lower():
+            logger.error("→ The DATABASE_URL host is wrong. Use the Supabase 'Session "
+                         "pooler' string (…pooler.supabase.com), not the Direct one.")
+        else:
+            logger.error("→ Check the DATABASE_URL secret (host, port, password, SSL).")
+        logger.error("Falling back to LOCAL SQLite (%s). The app will run, but data will "
+                     "NOT persist across reboots until Postgres connects.", _SQLITE_FALLBACK)
+        logger.error("=" * 70)
+        return False
+
+
+def _make_engine():
+    _url, engine_kwargs = _build_engine_args(settings.DATABASE_URL)
+    eng = create_async_engine(_url, **engine_kwargs)
+    if not settings.DATABASE_URL.startswith("sqlite") and not _postgres_reachable(eng):
+        eng = create_async_engine(_SQLITE_FALLBACK, echo=settings.DB_ECHO, pool_pre_ping=True)
+    return eng
+
+
+engine = _make_engine()
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

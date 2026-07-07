@@ -90,21 +90,25 @@ def _build_engine_args(raw_url: str):
 def _postgres_reachable(eng) -> bool:
     """Open one connection and run SELECT 1. Returns False (with a clear log) on
     any failure so the caller can fall back to local storage. Disposes the pool
-    afterwards so the app's real event loop starts with fresh connections."""
-    async def _probe():
-        try:
-            async with eng.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-        finally:
-            await eng.dispose()
+    afterwards so the app's real event loop starts with fresh connections.
+
+    The probe runs in a dedicated thread with its own event loop: at import time
+    uvicorn already has a running loop on the main thread, so ``asyncio.run``
+    there would raise. A separate thread lets the probe run regardless."""
+    import concurrent.futures
+
+    def _worker():
+        async def _probe():
+            try:
+                async with eng.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+            finally:
+                await eng.dispose()
+        asyncio.run(asyncio.wait_for(_probe(), timeout=12))
 
     try:
-        asyncio.get_running_loop()
-        return True  # a loop is already running (e.g. tests) — skip the probe
-    except RuntimeError:
-        pass
-    try:
-        asyncio.run(asyncio.wait_for(_probe(), timeout=12))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            ex.submit(_worker).result(timeout=20)
         return True
     except Exception as exc:  # noqa: BLE001 — any failure means "not usable"
         msg = str(exc) or exc.__class__.__name__

@@ -14,12 +14,28 @@ interface Article {
   tags?: { name: string; slug: string }[];
 }
 
-/** Minimal safe markdown renderer for headings / bold / links / paragraphs. */
+/** Decode the common HTML entities that survive RSS source text. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+/** Minimal safe markdown renderer for headings / bold / links / paragraphs.
+ *  Strips any raw HTML tags that leaked from RSS sources so they don't render
+ *  as visible markup, then re-escapes for safe insertion. */
 function renderMarkdown(md: string | null | undefined): string {
   if (!md || typeof md !== 'string') return '';
+  const clean = decodeEntities(md.replace(/<[^>]+>/g, ' ')).replace(/[ \t]{2,}/g, ' ');
   const escape = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return escape(md)
+  return escape(clean)
     .replace(/^## (.+)$/gm, '<h2 class="mt-6 mb-2 text-xl font-bold">$1</h2>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,

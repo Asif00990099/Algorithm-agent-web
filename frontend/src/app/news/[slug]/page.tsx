@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { usePoll } from '@/lib/hooks';
 import { mediaUrl } from '@/lib/api';
@@ -30,11 +31,25 @@ function renderMarkdown(md: string | null | undefined): string {
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>();
-  const { data: a, error, loading } = usePoll<Article>(`/news/${slug}`, 0);
+  const path = slug ? `/news/${slug}` : null;
+  const { data: a, error, loading, reload } = usePoll<Article>(path, 0);
 
   if (loading) return <Spinner />;
-  if (error) return <ErrorBox message={error} />;
-  if (!a) return null;
+  if (error || !a) {
+    return (
+      <div className="mx-auto max-w-3xl py-12 text-center">
+        <h1 className="text-2xl font-bold">This article couldn’t be loaded</h1>
+        <p className="mt-2 text-sm text-slate-400">
+          {error || 'No data was returned for this story.'}
+        </p>
+        <p className="mt-1 text-xs text-slate-400">Requested: {path}</p>
+        <div className="mt-5 flex justify-center gap-3">
+          <button onClick={reload} className="btn-ghost">Retry</button>
+          <Link href="/news" className="btn-ghost">← Back to news</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <article className="mx-auto max-w-3xl">

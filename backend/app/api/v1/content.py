@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.deps import require_editor
 from app.db.session import get_db
@@ -56,14 +57,18 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
 
 @router.get("/{slug}")
 async def get_article(slug: str, db: AsyncSession = Depends(get_db)):
-    article = await db.scalar(select(Article).where(Article.slug == slug,
-                                                    Article.status == ArticleStatus.PUBLISHED))
+    # eager-load tags: accessing a lazy relationship after commit under async
+    # SQLAlchemy raises (MissingGreenlet) and 500s the request.
+    article = await db.scalar(
+        select(Article).options(selectinload(Article.tags))
+        .where(Article.slug == slug, Article.status == ArticleStatus.PUBLISHED))
     if article is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Article not found")
+    tags = [{"name": t.name, "slug": t.slug} for t in article.tags]
     article.view_count += 1
     await db.commit()
     out = ArticleOut.model_validate(article).model_dump()
-    out["tags"] = [{"name": t.name, "slug": t.slug} for t in article.tags]
+    out["tags"] = tags
     return out
 
 

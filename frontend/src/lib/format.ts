@@ -28,9 +28,19 @@ export function pctClass(n: number | null | undefined): string {
   return n >= 0 ? 'text-bull' : 'text-bear';
 }
 
+/** Parse an API timestamp. Timezone-naive strings (no Z/offset) are treated as
+ *  UTC — the backend stores UTC, so without this a viewer in UTC+5 sees fresh
+ *  items as "5h ago". */
+function parseApiDate(iso: string | number): Date {
+  if (typeof iso === 'number') return new Date(iso * 1000);
+  const hasTz = /([zZ]|[+-]\d{2}:?\d{2})$/.test(iso);
+  return new Date(hasTz ? iso : `${iso}Z`);
+}
+
 export function fmtTime(iso: string | number | null | undefined): string {
   if (!iso) return '—';
-  const d = typeof iso === 'number' ? new Date(iso * 1000) : new Date(iso);
+  const d = parseApiDate(iso);
+  if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleString('en-US', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
@@ -38,7 +48,9 @@ export function fmtTime(iso: string | number | null | undefined): string {
 
 export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return '';
-  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  const t = parseApiDate(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const secs = Math.max(0, (Date.now() - t) / 1000);
   if (secs < 60) return 'just now';
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;

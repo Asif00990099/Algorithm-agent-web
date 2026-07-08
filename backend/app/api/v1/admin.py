@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.cache import get_redis
 from app.core.deps import require_admin
 from app.db.session import get_db
-from app.models import AppSetting, Article, AuditLog, PromptTemplate, Signal, Strategy, Trade, User, UserRole
+from app.models import Article, AuditLog, PromptTemplate, Signal, Strategy, Trade, User, UserRole
 from app.schemas.common import AdminUserUpdateRequest, UserOut
-from app.services import runtime_config
+from app.services import app_settings, runtime_config
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -152,32 +152,25 @@ async def delete_api_key(provider: str, db: AsyncSession = Depends(get_db)):
 
 # ------------------------------------------------------------------ settings
 
-class SettingIn(BaseModel):
-    value: str
 
-
-ALLOWED_SETTINGS = {
-    "ai_provider", "signal_symbols", "news_auto_publish", "scanner_enabled",
-    "signal_timeframes", "maintenance_mode", "live_trading_enabled",
-}
+class SettingsBulkIn(BaseModel):
+    values: dict[str, object]
 
 
 @router.get("/settings")
-async def get_settings_kv(db: AsyncSession = Depends(get_db)):
-    rows = (await db.execute(select(AppSetting))).scalars().all()
-    return {r.key: r.value for r in rows}
+async def get_settings(db: AsyncSession = Depends(get_db)):
+    """Full settings schema (grouped) with current values for the admin UI."""
+    return await app_settings.schema_with_values(db)
 
 
-@router.put("/settings/{key}")
-async def set_setting(key: str, body: SettingIn, db: AsyncSession = Depends(get_db)):
-    if key not in ALLOWED_SETTINGS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                            f"Unknown setting; allowed: {sorted(ALLOWED_SETTINGS)}")
-    row = await db.get(AppSetting, key)
-    if row is None:
-        row = AppSetting(key=key, value=body.value)
-        db.add(row)
-    else:
-        row.value = body.value
+@router.put("/settings")
+async def update_settings(body: SettingsBulkIn, db: AsyncSession = Depends(get_db)):
+    """Bulk-update settings; unknown keys are ignored, invalid values rejected."""
+    try:
+        applied = await app_settings.set_many(db, body.values)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Invalid setting value: {exc}") from exc
+    db.add(AuditLog(created_at=datetime.now(timezone.utc), action="admin.settings.update",
+                    resource="settings", detail=",".join(applied.keys())))
     await db.commit()
-    return {key: body.value}
+    return {"updated": applied}

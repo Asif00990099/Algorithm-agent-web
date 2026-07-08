@@ -71,14 +71,24 @@ async def init_db(create_all: bool = True) -> None:
             await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
-        admin = await db.scalar(select(User).where(User.role == UserRole.ADMIN).limit(1))
+        # Bootstrap admin keyed on FIRST_ADMIN_EMAIL. If it exists we re-assert
+        # admin role + active and re-sync the password to FIRST_ADMIN_PASSWORD,
+        # so a locked-out admin can always be recovered by setting that secret
+        # and rebooting. (This only affects the bootstrap account.)
+        admin_email = settings.FIRST_ADMIN_EMAIL.lower()
+        admin = await db.scalar(select(User).where(User.email == admin_email))
         if admin is None:
-            db.add(User(email=settings.FIRST_ADMIN_EMAIL.lower(), username="admin",
+            db.add(User(email=admin_email, username="admin",
                         hashed_password=hash_password(settings.FIRST_ADMIN_PASSWORD),
-                        role=UserRole.ADMIN, is_verified=True,
+                        role=UserRole.ADMIN, is_verified=True, is_active=True,
                         demo_balance=settings.DEMO_STARTING_BALANCE,
                         demo_equity_high=settings.DEMO_STARTING_BALANCE))
-            logger.info("Seeded first admin user %s", settings.FIRST_ADMIN_EMAIL)
+            logger.info("Seeded first admin user %s", admin_email)
+        else:
+            admin.role = UserRole.ADMIN
+            admin.is_active = True
+            admin.hashed_password = hash_password(settings.FIRST_ADMIN_PASSWORD)
+            logger.info("Re-synced bootstrap admin %s (role + password)", admin_email)
 
         for spec in DEFAULT_STRATEGIES:
             exists = await db.scalar(select(Strategy).where(Strategy.name == spec["name"]))

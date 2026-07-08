@@ -1,6 +1,7 @@
 'use client';
 import { useParams } from 'next/navigation';
 import { usePoll } from '@/lib/hooks';
+import { mediaUrl } from '@/lib/api';
 import { fmtTime } from '@/lib/format';
 import { ErrorBox, Spinner } from '@/components/ui';
 
@@ -13,7 +14,8 @@ interface Article {
 }
 
 /** Minimal safe markdown renderer for headings / bold / links / paragraphs. */
-function renderMarkdown(md: string): string {
+function renderMarkdown(md: string | null | undefined): string {
+  if (!md || typeof md !== 'string') return '';
   const escape = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return escape(md)
@@ -41,17 +43,19 @@ export default function ArticlePage() {
         <span>{fmtTime(a.published_at)}</span>
         <span>· {a.view_count} views</span>
         {a.is_auto_generated && <span className="badge bg-accent/10 text-accent">AI news desk</span>}
-        {a.symbols && a.symbols.split(',').filter(Boolean).map((s) => (
+        {(a.symbols ?? '').split(',').filter(Boolean).map((s) => (
           <span key={s} className="badge bg-slate-100 uppercase dark:bg-white/10">{s}</span>
         ))}
       </div>
       {a.featured_image_url && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={a.featured_image_url} alt="" className="mt-6 w-full rounded-2xl" />
+        <img src={mediaUrl(a.featured_image_url)} alt="" className="mt-6 w-full rounded-2xl" />
       )}
-      <p className="mt-6 text-lg font-medium text-slate-600 dark:text-slate-300">{a.summary}</p>
+      {a.summary && (
+        <p className="mt-6 text-lg font-medium text-slate-600 dark:text-slate-300">{a.summary}</p>
+      )}
       <div className="prose-custom mt-4 text-slate-700 dark:text-slate-200"
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(a.content) }} />
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(a.content) || `<p>${a.summary || ''}</p>` }} />
       {a.source_url && (
         <p className="mt-8 border-t border-slate-200 pt-4 text-sm text-slate-400 dark:border-white/10">
           Original reporting:{' '}

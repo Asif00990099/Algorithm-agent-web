@@ -16,6 +16,14 @@ from app.services.news.rewriter import slugify
 router = APIRouter(prefix="/news", tags=["news"])
 cms_router = APIRouter(prefix="/cms", tags=["cms"])
 media_router = APIRouter(prefix="/media", tags=["media"])
+meta_router = APIRouter(prefix="/meta", tags=["meta"])
+
+
+@meta_router.get("/settings")
+async def public_settings(db: AsyncSession = Depends(get_db)):
+    """Public branding / SEO / feature-flag settings for the frontend."""
+    from app.services import app_settings
+    return await app_settings.public_settings(db)
 
 
 # ------------------------------------------------------------------ public

@@ -47,11 +47,16 @@ class Settings(BaseSettings):
     BINANCE_API_KEY: str = ""            # only needed for live trading
     BINANCE_API_SECRET: str = ""
     BINANCE_BASE_URL: str = "https://api.binance.com"
+    # geo-neutral public market-data mirror (works from cloud/US hosts)
+    BINANCE_DATA_URL: str = "https://data-api.binance.vision"
     BINANCE_TESTNET_BASE_URL: str = "https://testnet.binance.vision"
     ALPHA_VANTAGE_API_KEY: str = ""
     FINNHUB_API_KEY: str = ""
     FMP_API_KEY: str = ""
     FRED_API_KEY: str = ""
+    # CryptoCompare: globally-accessible OHLCV/price source used as a fallback
+    # when Binance is geo-blocked (e.g. on US cloud hosts). Free, key optional.
+    CRYPTOCOMPARE_API_KEY: str = ""
 
     # --- News / social API keys (optional) ---
     NEWSAPI_API_KEY: str = ""
@@ -76,6 +81,12 @@ class Settings(BaseSettings):
     MAX_OPEN_POSITIONS: int = 10
     DEFAULT_QUOTE_ASSET: str = "USDT"
 
+    # Run the periodic jobs (signals, news, scanner, calendar…) inside the API
+    # process itself — for single-service deploys with no separate Celery worker
+    # (Hugging Face, one Render service, etc.). Set false when running dedicated
+    # Celery workers (docker-compose) to avoid double execution.
+    RUN_BACKGROUND_JOBS: bool = True
+
     # --- Worker cadence (seconds) ---
     MARKET_SYNC_INTERVAL: int = 60
     SCANNER_INTERVAL: int = 60
@@ -93,6 +104,22 @@ class Settings(BaseSettings):
     @classmethod
     def _warn_default_secret(cls, v: str) -> str:
         return v
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        """Accept the raw connection strings that Supabase / Neon / Heroku hand
+        out (postgres:// or postgresql://) and coerce them to the async driver
+        this app uses, so users can paste the URL verbatim."""
+        if v.startswith("postgres://"):
+            v = "postgresql+asyncpg://" + v[len("postgres://"):]
+        elif v.startswith("postgresql://"):
+            v = "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
+
+    @property
+    def redis_enabled(self) -> bool:
+        return bool(self.REDIS_URL and self.REDIS_URL.strip())
 
     @property
     def is_production(self) -> bool:

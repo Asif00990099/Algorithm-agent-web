@@ -23,6 +23,32 @@ MIN_VOLUME_USD = 1_000_000       # ignore illiquid pairs
 WHALE_TRADE_USD = 250_000        # single print considered whale-sized
 
 
+def _rows_from_coingecko(markets: List[dict]) -> List[dict]:
+    """Build scanner rows from CoinGecko /coins/markets — used when the Binance
+    all-tickers feed is geo-blocked (cloud/US hosts). Same shape as _usdt_pairs."""
+    out = []
+    for c in markets:
+        try:
+            price = float(c["current_price"])
+            change = float(c.get("price_change_percentage_24h") or 0.0)
+            volume = float(c.get("total_volume") or 0.0)
+            high = float(c.get("high_24h") or price)
+            low = float(c.get("low_24h") or price)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if volume < MIN_VOLUME_USD:
+            continue
+        rng = high - low
+        out.append({
+            "symbol": f"{str(c.get('symbol', '')).upper()}USDT",
+            "price": price, "change_pct": round(change, 2), "volume_usd": volume,
+            "high": high, "low": low, "trades": 0,
+            "volatility_pct": round(rng / low * 100, 2) if low > 0 else 0.0,
+            "range_position": round((price - low) / rng, 4) if rng > 0 else 0.5,
+        })
+    return out
+
+
 def _usdt_pairs(tickers: List[dict]) -> List[dict]:
     out = []
     for tk in tickers:
@@ -92,30 +118,37 @@ async def fetch_delistings() -> List[dict]:
 
 
 async def run_scan() -> Optional[dict]:
+    # Prefer Binance's full ticker set; fall back to CoinGecko (globally reachable)
     tickers = await get_ticker_24h()
-    if not isinstance(tickers, list):
-        logger.warning("Scanner: ticker feed unavailable")
-        return None
-    rows = _usdt_pairs(tickers)
+    rows = _usdt_pairs(tickers) if isinstance(tickers, list) else []
+    binance_ok = bool(rows)  # whales/liquidations/delistings are Binance-only
     if not rows:
+        from app.services.market import coingecko
+        markets = await coingecko.get_markets(per_page=250)
+        rows = _rows_from_coingecko(markets or [])
+    if not rows:
+        logger.warning("Scanner: no market data source reachable")
         return None
 
     by_change = sorted(rows, key=lambda r: r["change_pct"], reverse=True)
     by_volume = sorted(rows, key=lambda r: r["volume_usd"], reverse=True)
-    by_trades = sorted(rows, key=lambda r: r["trades"], reverse=True)
+    # CoinGecko rows have no trade count → rank "most active" by volume instead
+    by_trades = sorted(rows, key=lambda r: r["trades"] or r["volume_usd"], reverse=True)
     by_vol = sorted(rows, key=lambda r: r["volatility_pct"], reverse=True)
 
     breakouts = [r for r in rows if r["range_position"] >= 0.995 and r["change_pct"] > 3][:20]
     breakdowns = [r for r in rows if r["range_position"] <= 0.005 and r["change_pct"] < -3][:20]
 
-    whales = await fetch_whale_trades([r["symbol"] for r in by_volume])
-
-    # liquidations: sample the futures force-order stream this cycle, then
-    # merge with the rolling window already stored in Redis
-    fresh_liqs = await sample_liquidations(duration_seconds=6.0)
-    liquidations = fresh_liqs or await get_recent_liquidations(50)
-
-    delistings = await fetch_delistings()
+    # whale prints, liquidations and delistings are Binance-only feeds; skip them
+    # when Binance is unreachable (CoinGecko fallback) to avoid slow blocked calls
+    whales: List[dict] = []
+    liquidations: List[dict] = []
+    delistings: List[dict] = []
+    if binance_ok:
+        whales = await fetch_whale_trades([r["symbol"] for r in by_volume])
+        fresh_liqs = await sample_liquidations(duration_seconds=6.0)
+        liquidations = fresh_liqs or await get_recent_liquidations(50)
+        delistings = await fetch_delistings()
 
     new_listings = await get_new_listings()
     listings = [{"id": c.get("id"), "symbol": c.get("symbol"), "name": c.get("name"),

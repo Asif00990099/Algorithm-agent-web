@@ -20,6 +20,7 @@ import websockets
 from fastapi import WebSocket
 
 from app.core.cache import get_redis
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,8 @@ class ConnectionManager:
         async with self._lock:
             if self._binance_task is None or self._binance_task.done():
                 self._binance_task = asyncio.create_task(self._binance_pump())
-            if self._redis_task is None or self._redis_task.done():
+            # platform events flow through Redis pub/sub; skip when Redis is off
+            if settings.redis_enabled and (self._redis_task is None or self._redis_task.done()):
                 self._redis_task = asyncio.create_task(self._redis_pump())
 
     def subscribe(self, ws: WebSocket, topics: list[str]) -> list[str]:

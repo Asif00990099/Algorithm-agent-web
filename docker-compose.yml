@@ -7,6 +7,9 @@ x-backend-env: &backend-env
     REDIS_URL: redis://redis:6379/0
     CELERY_BROKER_URL: redis://redis:6379/1
     CELERY_RESULT_BACKEND: redis://redis:6379/2
+    # dedicated Celery workers handle periodic jobs here, so keep the API's
+    # in-process scheduler off to avoid running everything twice
+    RUN_BACKGROUND_JOBS: "false"
 
 services:
   postgres:

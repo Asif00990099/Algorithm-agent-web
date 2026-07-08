@@ -18,6 +18,77 @@ and must live on a container host (sections 1–2 below, or Railway/Render/Fly).
 Until a backend URL is configured the UI deploys fine and renders graceful
 "data unavailable" states — no fake data is ever shown.
 
+## 0.4 Free deploy — Hugging Face Spaces (no card, recommended)
+
+The most reliably free, no-credit-card backend host. Uses the ready-made files in
+[`deploy/huggingface/`](../deploy/huggingface/).
+
+1. **Database:** create a free Postgres at **supabase.com** (or neon.tech). Copy its
+   connection URI and append `?ssl=require` (see the Supabase steps in §0.5).
+2. **Space:** https://huggingface.co/new-space → SDK **Docker** → Blank → Create.
+3. Add the two files from `deploy/huggingface/` (`Dockerfile` + `README.md`) to the
+   Space (upload or paste). The Dockerfile clones this repo's backend and runs it.
+4. **Space → Settings → Variables and secrets** → add as *Secrets*: `DATABASE_URL`,
+   `SECRET_KEY`, `ENCRYPTION_KEY`, `ENVIRONMENT=production`, `ALLOWED_ORIGINS`,
+   `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_PASSWORD`, and any data API keys. Leave
+   `REDIS_URL` unset (Redis is optional).
+5. Space builds → URL is `https://<user>-<space>.hf.space`. Point Vercel's
+   `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_WS_URL` at it and redeploy.
+
+Update after code changes: open the Space → ⋮ → **Factory reboot**.
+
+**Other free, GitHub-auto-deploy hosts (Render-style):** Back4App Containers and
+Northflank both have free tiers that build a Dockerfile from GitHub — set the work
+directory / Dockerfile path to `backend/` and use the same env vars.
+
+## 0.5 Free deploy — Supabase (DB) + container host
+
+The backend runs on just a **PostgreSQL database** — Redis and the Celery workers
+are optional. Without them you lose only *scheduled background automation* (news
+cron, periodic signal generation); everything on-demand (auth, admin, live market
+data, charts, trading, backtests, manual "Analyze") works. That makes a single
+free web service enough.
+
+### Step 1 — Free database (Supabase)
+1. Create a free project at **supabase.com** (no card).
+2. Project **Settings → Database → Connection string → URI**. Copy the
+   **Direct connection** (port 5432) or **Session pooler** string — **not** the
+   Transaction pooler (6543), which breaks async prepared statements.
+3. It looks like `postgresql://postgres:PASSWORD@db.<ref>.supabase.co:5432/postgres`.
+   Append **`?ssl=require`** at the end. The app auto-converts `postgresql://` to
+   its async driver, so paste it as-is otherwise.
+   (Neon.tech is an equivalent free Postgres — same steps, also append `?ssl=require`.)
+
+### Step 2 — Free backend host (Koyeb)
+1. Sign up at **koyeb.com** with GitHub (no card for the free instance).
+2. **Create Web Service → GitHub →** pick `Asif00990099/Algorithm-agent-web`.
+3. **Builder: Dockerfile.** Set **Work directory = `backend`** (so the build uses
+   `backend/Dockerfile`). Health check path: `/api/health`. Port: `8000`.
+4. **Environment variables:**
+   ```
+   DATABASE_URL   = <the Supabase URI from step 1, with ?ssl=require>
+   SECRET_KEY     = <run: openssl rand -hex 32>
+   ENCRYPTION_KEY = <run: openssl rand -base64 32>
+   ENVIRONMENT    = production
+   ALLOWED_ORIGINS= https://algorithm-agent-web.vercel.app
+   FIRST_ADMIN_EMAIL    = you@example.com
+   FIRST_ADMIN_PASSWORD = <a strong password>
+   ```
+   Leave `REDIS_URL` **unset** — Redis auto-disables (caching + rate limiting no-op
+   safely on a single instance).
+5. Deploy. When it's healthy, copy the public URL (e.g. `https://<app>.koyeb.app`).
+
+### Step 3 — Point the frontend at it (Vercel)
+Set in Vercel → Settings → Environment Variables, then redeploy:
+```
+NEXT_PUBLIC_API_URL = https://<app>.koyeb.app
+NEXT_PUBLIC_WS_URL  = wss://<app>.koyeb.app/api/v1/ws/stream
+```
+
+Now sign-up, login, `/admin`, and live crypto data all work. Add data API keys in
+`/admin` → API Management. (Other free hosts that work the same way: **Railway**,
+**Fly.io**, **Hugging Face Spaces** — all Docker + a free Postgres.)
+
 ## 1. Docker Compose (single host)
 
 ```bash

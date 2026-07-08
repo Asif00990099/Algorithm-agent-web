@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { usePoll } from '@/lib/hooks';
-import { mediaUrl } from '@/lib/api';
+import { useCallback, useEffect, useState } from 'react';
+import { API_BASE, mediaUrl } from '@/lib/api';
 import { fmtTime } from '@/lib/format';
-import { ErrorBox, Spinner } from '@/components/ui';
+import { Spinner } from '@/components/ui';
 
 interface Article {
   title: string; summary: string; content: string; featured_image_url: string;
@@ -31,20 +31,51 @@ function renderMarkdown(md: string | null | undefined): string {
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>();
-  const path = slug ? `/news/${slug}` : null;
-  const { data: a, error, loading, reload } = usePoll<Article>(path, 0);
+  const url = slug ? `${API_BASE}/api/v1/news/${slug}` : '';
+  const [a, setA] = useState<Article | null>(null);
+  const [diag, setDiag] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!url) return;
+    setLoading(true);
+    try {
+      const r = await fetch(url);
+      const text = await r.text();
+      if (!r.ok) {
+        setA(null);
+        setDiag(`HTTP ${r.status} · ${text.slice(0, 240) || '(empty body)'}`);
+      } else if (!text.trim()) {
+        setA(null);
+        setDiag(`HTTP ${r.status} · empty body`);
+      } else {
+        try {
+          setA(JSON.parse(text) as Article);
+          setDiag('');
+        } catch {
+          setA(null);
+          setDiag(`HTTP ${r.status} · non-JSON body: ${text.slice(0, 200)}`);
+        }
+      }
+    } catch (e) {
+      setA(null);
+      setDiag(`Network/CORS error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [url]);
+
+  useEffect(() => { load(); }, [load]);
 
   if (loading) return <Spinner />;
-  if (error || !a) {
+  if (!a) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
         <h1 className="text-2xl font-bold">This article couldn’t be loaded</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          {error || 'No data was returned for this story.'}
-        </p>
-        <p className="mt-1 text-xs text-slate-400">Requested: {path}</p>
+        <p className="mt-2 break-all text-xs text-slate-400">Tried: {url}</p>
+        <p className="mt-1 break-all text-sm text-slate-500">{diag}</p>
         <div className="mt-5 flex justify-center gap-3">
-          <button onClick={reload} className="btn-ghost">Retry</button>
+          <button onClick={load} className="btn-ghost">Retry</button>
           <Link href="/news" className="btn-ghost">← Back to news</Link>
         </div>
       </div>

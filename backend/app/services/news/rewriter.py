@@ -13,6 +13,7 @@ Both credit the original source and link out (`source_url`).
 """
 from __future__ import annotations
 
+import html as _html
 import json
 import logging
 import re
@@ -37,6 +38,20 @@ CATEGORY_KEYWORDS = {
 STOPWORDS = {"the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with",
              "as", "at", "by", "is", "are", "was", "be", "this", "that", "its",
              "it", "from", "has", "have", "after", "into", "over", "amid", "will"}
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html(text: str) -> str:
+    """Flatten RSS/HTML source text to clean plain text. Many feeds embed
+    <p>/<a>/<img>/<br> markup in titles and descriptions; left in, it renders
+    as visible tags in the article body."""
+    if not text:
+        return ""
+    text = _TAG_RE.sub(" ", text)
+    text = _html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def slugify(text: str, max_length: int = 80) -> str:
@@ -72,8 +87,8 @@ def featured_image_for(category: str, symbols: list[str]) -> str:
 
 async def rewrite_article(raw: dict) -> Optional[dict]:
     """Return a publishable original article dict, or None if input unusable."""
-    title = (raw.get("title") or "").strip()
-    description = (raw.get("description") or "").strip()
+    title = strip_html((raw.get("title") or "").strip())
+    description = strip_html((raw.get("description") or "").strip())
     if not title:
         return None
 

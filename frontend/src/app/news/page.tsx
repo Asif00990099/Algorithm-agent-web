@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePoll } from '@/lib/hooks';
+import { mediaUrl } from '@/lib/api';
 import { timeAgo } from '@/lib/format';
 import { ErrorBox, SectionTitle, Spinner } from '@/components/ui';
 
@@ -59,7 +60,7 @@ export default function NewsPage() {
               <Link key={a.id} href={`/news/${a.slug}`} className="glass glass-hover flex flex-col overflow-hidden">
                 {a.featured_image_url && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.featured_image_url} alt="" className="aspect-[1200/630] w-full object-cover" loading="lazy" />
+                  <img src={mediaUrl(a.featured_image_url)} alt="" className="aspect-[1200/630] w-full object-cover" loading="lazy" />
                 )}
                 <div className="flex grow flex-col p-4">
                   <h3 className="line-clamp-2 font-bold leading-snug">{a.title}</h3>

@@ -8,6 +8,15 @@ export const WS_URL =
 
 const V1 = `${API_BASE}/api/v1`;
 
+/** Resolve a media URL that may be backend-relative (e.g. the self-hosted
+ *  og-image endpoint "/api/v1/media/og-image…"). Relative paths must point at
+ *  the API host, not the frontend origin, or they 404 on Vercel. */
+export function mediaUrl(u: string | null | undefined): string {
+  if (!u) return '';
+  if (/^https?:\/\//i.test(u) || u.startsWith('data:')) return u;
+  return `${API_BASE}${u.startsWith('/') ? '' : '/'}${u}`;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
